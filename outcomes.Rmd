@@ -1,0 +1,511 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+
+```{r}
+set.seed(42)
+library(magrittr)
+library(qwraps2)
+
+# define the markup language we are working in.
+# options(qwraps2_markup = "latex") is also supported.
+options(qwraps2_markup = "markdown")
+
+df <- read.csv(file="C:/Users/pc/Desktop/UEF/Industrial Project/week1/data_final.csv", header=TRUE,sep=';')
+
+
+head( df )
+
+df2 <- 
+   dplyr::mutate( df, 
+                  condition_factor = factor( Condition,
+                                             levels=c("Noise","Silent"),
+                                             labels=paste(c("Noise","Silent"),"environment")),
+                  condition_character= paste(Condition,"environment")) 
+
+
+
+#Building a Data Summary Table
+
+our_summary <- 
+  list( "Mental Demands" =
+          list( "min"= ~ min( df2$Mental_demands),
+                "max"= ~ max( df2$Mental_demands),
+                "mean"= ~ qwraps2::mean_sd(df2$Mental_demands)),
+        "Physical Demands" =
+          list( "min"= ~ min( df2$Physical_demands),
+                "max"= ~ max( df2$Physical_demands),
+                "mean"= ~ qwraps2::mean_sd(df2$Physical_demands)),
+        "Temporal Demands" =
+          list( "min"= ~ min( df2$Temporal_demands),
+                "max"= ~ max( df2$Temporal_demands),
+                "mean"= ~ qwraps2::mean_sd(df2$Temporal_demands)),
+        "Task Complexity" =
+          list( "min"= ~ min( df2$Task_complexity),
+                "max"= ~ max( df2$Task_complexity),
+                "mean"= ~ qwraps2::mean_sd(df2$Task_complexity)),
+        "Situational Stress" =
+          list( "min"= ~ min( df2$Situational_stress),
+                "max"= ~ max( df2$Situational_stress),
+                "mean"= ~ qwraps2::mean_sd(df2$Situational_stress)),
+        "Distractions" =
+          list( "min"= ~ min( df2$Distractions),
+                "max"= ~ max( df2$Distractions),
+                "mean"= ~ qwraps2::mean_sd(df2$Distractions))
+        
+  )
+
+whole <- summary_table(df2, our_summary)          
+whole          
+          
+```
+```{r}
+by_cond <- summary_table( dplyr::group_by(df2, condition_factor), our_summary )
+by_cond
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+```{r}
+both <- cbind( whole, by_cond )
+both 
+```
+```{r}
+print( both, 
+       rtitle= 'Summary Statistics',
+       cnames= c('Total','Noise Environment','Silent Environment'))
+
+```
+
+```{r}
+#df2 %>%
+#  dplyr::select( df2$Mental_demand, df2$condition_factor) %>%
+#  qsummary(.)
+```
+```{r}
+df2 %>%
+  dplyr::select( df2$Mental_demands, df2$Physical_demands ,df2$condition_factor) %>%
+  summary_table(.)
+```
+```{r}
+new_summary <-
+  df2 %>%
+  dplyr::select( df2$Physical_demand, df2$condition_factor,df2$Task_complexity) %>%
+  qsummary(.,
+           numeric_summaries = list("Minimum" = "~ min(%s)",
+                                    "Maximum" = "~ max(%s)"),
+           n_perc_args = list(digits = 1, show_symbol = TRUE, show_denom = "always"))
+
+summary_table(df2,new_summary)
+
+```
+
+```{r}
+df2 %>%
+  dplyr::group_by( df$Condition ) %>%
+  summary_table(., new_summary )
+```
+```{r}
+# difference in means
+mpvals <-
+  list(lm( Mental_demands ~ condition_factor,  data = df2),
+       lm( Physical_demands ~ condition_factor, data = df2),
+       lm( Task_complexity ~ condition_factor,   data = df2)) %>%
+  lapply(aov) %>%
+  lapply(summary) %>%
+  lapply(function(x) x[[1]][["Pr(>F)"]][1]) %>%
+  lapply(frmtp) %>%
+  do.call(c, .)
+
+# Fisher test
+fpval <- frmtp(fisher.test(table(df2$Condition, df2$condition_factor))$p.value)
+```
+
+```{r}
+both <- cbind(both, "P-value" = "")
+both[grepl("mean \\(sd\\)", rownames(both)), "P-value"] <- mpvals
+a <- capture.output(print(both))
+a[grepl("Forward Condition", a)] %<>% sub("&nbsp;&nbsp;\\ \\|$", paste(fpval, "|"), .)
+cat(a, sep = "\n")
+```
+```{r}
+library(ggplot2)
+
+```
+```{r}
+p <- ggplot( data=df, aes( x=ID , y=Mental_demands )) +
+     geom_bar( stat="identity", color="black", fill="steelblue")+
+  geom_text(aes(label=Mental_demands), vjust=-0.3, size=3.5)+
+  theme_minimal()
+# Use custom color palettes
+#p+scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))
+# Use brewer color palettes
+#p+scale_color_brewer(palette="Dark2")
+# Use grey scale
+p 
+
+
+```
+
+```{r}
+k <- ggplot(df, aes(factor(Condition), fill = factor(Mental_demands)))
+k + geom_bar()
+```
+```{r}
+k <- ggplot(df, aes(factor(Condition), fill = factor(Physical_demands)))
+k + geom_bar()
+```
+
+```{r}
+k <- ggplot(df, aes(factor(Condition), fill = factor(Task_complexity)))
+k + geom_bar()
+```
+
+```{r}
+library(ggplot2)        # plotting & data
+library(dplyr)          # data manipulation
+library(tidyr)          # data re-shaping
+library(magrittr)       # pipe operator
+library(gridExtra)      # provides side-by-side plotting
+
+#head(midwest)
+
+
+```
+```{r}
+t.test( df$Mental_demands, mu = 32, alternative = "less")
+```
+```{r}
+t.test(log(df$Mental_demands), mu = log(32), alternative = "less")
+wilcox.test(df$Mental_demands, mu = 32, alternative = "less")
+```
+
+```{r}
+dfx <- df %>%
+        filter( Condition == "Noise" | Condition == "Silent") %>%
+        select(Condition, Mental_demands)
+
+# Ohio summary stats
+summary(dfx %>% filter(Condition == "Noise") %>% .$Mental_demands)
+##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+##   7.913  13.090  15.460  16.890  18.990  32.200
+
+# Michigan summary stats
+summary(dfx %>% filter(Condition == "Silent") %>% .$Mental_demands)
+##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+##   11.31   14.61   17.43   19.42   21.31   48.08
+```
+```{r}
+ggplot(df, aes(Condition, Mental_demands)) +
+        geom_boxplot( color="black", fill="orange", alpha=0.5 )
+```
+```{r}
+ggplot(df, aes(Condition, Physical_demands)) +
+        geom_boxplot( color="black", fill="green", alpha=0.5 )
+```
+
+```{r}
+ggplot(df, aes(Condition, Temporal_demands)) +
+        geom_boxplot( color="black", fill="pink", alpha=0.5 )
+```
+```{r}
+ggplot(df, aes(Condition, Task_complexity)) +
+        geom_boxplot( color="black", fill="blue", alpha=0.5 )
+```
+
+```{r}
+# library
+library(ggplot2)
+library(ggpubr)
+ 
+# The mtcars dataset is natively available in R
+#head(mpg)
+par(mfrow=c(2,2)) 
+# Top Left: Set a unique color with fill, colour, and alpha
+p1 <- ggplot( df, aes(x=Condition, y=Mental_demands)) + 
+    geom_boxplot(color="black", fill="orange", alpha=0.5)
+ 
+# Top Right: Set a different color for each group
+p2 <- ggplot( df, aes(x=Condition, y=Physical_demands)) + 
+    geom_boxplot(color="black", fill="red",alpha=0.5) +
+    theme(legend.position="none")
+
+# Bottom Left
+p3 <- ggplot( df, aes(x=Condition, y=Task_complexity)) + 
+    geom_boxplot(color="black", fill="blue",alpha=0.5) +
+    theme(legend.position="none") +
+    scale_fill_brewer(palette="BuPu")
+ 
+# Bottom Right
+p4 <- ggplot( df, aes(x=Condition, y=Distractions)) + 
+    geom_boxplot(color="black", fill="brown",alpha=0.3) +
+    theme(legend.position="none") +
+    scale_fill_brewer(palette="Dark2")
+
+p5 <- ggplot( df, aes(x=Condition, y=Temporal_demands)) + 
+    geom_boxplot(color="black", fill="yellow",alpha=0.3) +
+    theme(legend.position="none") +
+    scale_fill_brewer(palette="Dark2")
+
+p6 <- ggplot( df, aes(x=Condition, y=Situational_stress)) + 
+    geom_boxplot(color="black", fill="green",alpha=0.3) +
+    theme(legend.position="none") +
+    scale_fill_brewer(palette="Dark2")
+
+ggarrange(p1, p2, p3, p4, p5, p6 + rremove("x.text"), 
+          labels = c("A", "B", "C","D","E","F"),
+          ncol = 3, nrow = 2)
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(forcats)
+library(hrbrthemes)
+library(viridis)
+
+# Data is at wide format, we need to make it 'tidy' or 'long'
+data <- df %>% 
+  gather(key="text", value="value") %>%
+  mutate(text = gsub("\\.", " ",text)) %>%
+  mutate(value = round(as.numeric(value),0)) %>%
+  filter(text %in% c("Mental_demands","Physical_demands","Temporal_demands","Situational_stress","Distractions"))
+
+# Plot
+p <- data %>%
+  mutate(text = fct_reorder(text, value)) %>% # Reorder data
+  ggplot( aes(x=text, y=value, fill=text, color=text)) +
+    geom_violin(width=2.1, size=0.2) +
+    scale_fill_viridis(discrete=TRUE) +
+    scale_color_viridis(discrete=TRUE) +
+    theme_ipsum() +
+    theme(
+      legend.position="none"
+    ) +
+    coord_flip() + # This switch X and Y axis and allows to get the horizontal version
+    xlab("") +
+    ylab("Count")
+
+p
+
+
+
+```
+```{r}
+# Libraries
+library(ggplot2)
+library(hrbrthemes)
+library(dplyr)
+library(tidyr)
+library(viridis)
+
+# The diamonds dataset is natively available with R.
+
+# Without transparency (left)
+p1 <- ggplot(data=df, aes(x=Task_complexity, group=Condition, fill=Condition)) +
+    geom_density(adjust=1.5, alpha=0.3) +
+    theme_ipsum()
+
+p2 <- ggplot(data=df, aes(x=Mental_demands, group=Condition, fill=Condition)) +
+    geom_density(adjust=1.5, alpha=0.3) +
+    theme_ipsum()
+
+p3 <- ggplot(data=df, aes(x=Physical_demands, group=Condition, fill=Condition)) +
+    geom_density(adjust=1.5, alpha=0.3) +
+    theme_ipsum()
+
+p4 <- ggplot(data=df, aes(x=Temporal_demands, group=Condition, fill=Condition)) +
+    geom_density(adjust=1.5, alpha=0.3) +
+    theme_ipsum()
+p5 <- ggplot(data=df, aes(x=Situational_stress, group=Condition, fill=Condition)) +
+    geom_density(adjust=1.5, alpha=0.3) +
+    theme_ipsum()
+p6 <- ggplot(data=df, aes(x=Distractions, group=Condition, fill=Condition)) +
+    geom_density(adjust=1.5, alpha=0.3) +
+    theme_ipsum()
+ggarrange(p1, p2 , 
+          labels = c("A", "B", "C","D","E","F"),
+          ncol = 1, nrow = 2)
+ggarrange(p3, p4 , 
+          labels = c("A", "B", "C","D","E","F"),
+          ncol = 1, nrow = 2)
+ggarrange(p5, p6 , 
+          labels = c("A", "B", "C","D","E","F"),
+          ncol = 1, nrow = 2)
+
+```
+
+
+
+```{r}
+sp1 <- ggscatter(df, x = "Mental_demands", y = "Task_complexity",
+                add = "reg.line",               # Add regression line
+                conf.int = TRUE,                # Add confidence interval
+                color = "Condition", palette = "jco", # Color by groups "cyl"
+                shape = "Condition"                   # Change point shape by groups "cyl"
+                )+
+  stat_cor(aes(color = Condition), label.x = 3)       # Add correlation coefficient
+
+sp2 <- ggscatter(df, x = "Physical_demands", y = "Task_complexity",
+                add = "reg.line",               # Add regression line
+                conf.int = TRUE,                # Add confidence interval
+                color = "Condition", palette = "jco", # Color by groups "cyl"
+                shape = "Condition"                   # Change point shape by groups "cyl"
+                )+
+  stat_cor(aes(color = Condition), label.x = 3)       # Add correlation coefficient
+
+sp3 <- ggscatter(df, x = "Distractions", y = "Task_complexity",
+                add = "reg.line",               # Add regression line
+                conf.int = TRUE,                # Add confidence interval
+                color = "Condition", palette = "jco", # Color by groups "cyl"
+                shape = "Condition"                   # Change point shape by groups "cyl"
+                )+
+  stat_cor(aes(color = Condition), label.x = 3)       # Add correlation coefficient
+
+sp4 <- ggscatter(df, x = "Temporal_demands", y = "Task_complexity",
+                add = "reg.line",               # Add regression line
+                conf.int = TRUE,                # Add confidence interval
+                color = "Condition", palette = "jco", # Color by groups "cyl"
+                shape = "Condition"                   # Change point shape by groups "cyl"
+                )+
+  stat_cor(aes(color = Condition), label.x = 3)       # Add correlation coefficient
+
+ggarrange(sp1, sp2 ,sp3,sp4, 
+          labels = c("A", "B", "C","D","E","F"),
+          ncol = 2, nrow = 2)
+```
+```{r}
+# Density plot of "Sepal.Length"
+#::::::::::::::::::::::::::::::::::::::
+density.p <- ggdensity(df, x = "Mental_demands", 
+                       fill = "Condition", palette = "jco")
+# Draw the summary table of Sepal.Length
+#::::::::::::::::::::::::::::::::::::::
+# Compute descriptive statistics by groups
+stable <- desc_statby(df, measure.var = "Mental_demands",
+                      grps = "Condition")
+stable <- stable[, c("Condition", "mean", "sd")]
+# Summary table plot, medium orange theme
+stable.p <- ggtexttable(stable, rows = NULL, 
+                        theme = ttheme("mOrange"))
+# Draw text
+#::::::::::::::::::::::::::::::::::::::
+text <- paste("iris data set gives the measurements in cm",
+              "of the variables sepal length and width",
+              "and petal length and width, respectively,",
+              "for 50 flowers from each of 3 species of iris.",
+             "The species are Iris setosa, versicolor, and virginica.", sep = " ")
+text.p <- ggparagraph(text = text, face = "italic", size = 11, color = "black")
+# Arrange the plots on the same page
+ggarrange(density.p, stable.p, text.p, 
+          ncol = 1, nrow = 3,
+          heights = c(1, 0.5, 0.3))
+```
+```{r}
+# Density plot of "Sepal.Length"
+#::::::::::::::::::::::::::::::::::::::
+density.p <- ggdensity(df, x = "Physical_demands", 
+                       fill = "Condition", palette = "jco")
+# Draw the summary table of Sepal.Length
+#::::::::::::::::::::::::::::::::::::::
+# Compute descriptive statistics by groups
+stable <- desc_statby(df, measure.var = "Physical_demands",
+                      grps = "Condition")
+stable <- stable[, c("Condition", "mean", "sd")]
+# Summary table plot, medium orange theme
+stable.p <- ggtexttable(stable, rows = NULL, 
+                        theme = ttheme("mOrange"))
+# Draw text
+#::::::::::::::::::::::::::::::::::::::
+text <- paste("iris data set gives the measurements in cm",
+              "of the variables sepal length and width",
+              "and petal length and width, respectively,",
+              "for 50 flowers from each of 3 species of iris.",
+             "The species are Iris setosa, versicolor, and virginica.", sep = " ")
+text.p <- ggparagraph(text = text, face = "italic", size = 11, color = "black")
+# Arrange the plots on the same page
+ggarrange(density.p, stable.p, text.p, 
+          ncol = 1, nrow = 3,
+          heights = c(1, 0.5, 0.3))
+```
+```{r}
+# Scatter plot colored by groups ("Species")
+#::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+sp <- ggscatter(df, x = "Mental_demands", y = "Task_complexity",
+                color = "Condition", palette = "jco",
+                size = 2, alpha = 0.6)
+# Create box plots of x/y variables
+#::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+# Box plot of the x variable
+xbp <- ggboxplot(df$Mental_demands, width = 0.3, fill = "lightgray") +
+  rotate() +
+  theme_transparent()
+# Box plot of the y variable
+ybp <- ggboxplot(df$Task_complexity, width = 0.3, fill = "lightgray") +
+  theme_transparent()
+# Create the external graphical objects
+# called a "grop" in Grid terminology
+xbp_grob <- ggplotGrob(xbp)
+ybp_grob <- ggplotGrob(ybp)
+# Place box plots inside the scatter plot
+#::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+xmin <- min(df$Mental_demands); xmax <- max(df$Mental_demands)
+ymin <- min(df$Task_complexity); ymax <- max(df$Task_complexity)
+yoffset <- (1/15)*ymax; xoffset <- (1/15)*xmax
+# Insert xbp_grob inside the scatter plot
+sp + annotation_custom(grob = xbp_grob, xmin = xmin, xmax = xmax, 
+                       ymin = ymin-yoffset, ymax = ymin+yoffset) +
+  # Insert ybp_grob inside the scatter plot
+  annotation_custom(grob = ybp_grob,
+                       xmin = xmin-xoffset, xmax = xmin+xoffset, 
+                       ymin = ymin, ymax = ymax)
+```
+
+```{r}
+
+```
+
+```{r}
+
+silent_phy_dem=df$Physical_demands[ df$Condition=='Silent' ]
+noise_phy_dem=df$Physical_demands[ df$Condition=='Noise' ]
+
+t.test(noise_mental_dem,silent_mental_dem)
+
+
+```
+```{r}
+
+silent_mental_dem=df$Mental_demands[ df$Condition=='Silent' ]
+noise_mental_dem=df$Mental_demands[ df$Condition=='Noise' ]
+
+t.test(noise_mental_dem,silent_mental_dem)
+
+```
+```{r}
+silent_phy_dem
+```
+
+```{r}
+silent_mental_dem
+```
+```{r}
+
+df_noise=df[ df$Condition=='Noise']
+df_noise
+```
+```{r}
+df_noise=df[ df$Condition=='Silent']
+df_noise
+
+```
+
